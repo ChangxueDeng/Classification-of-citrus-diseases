@@ -69,10 +69,9 @@ test_loader = D.DataLoader(test_dataset, batch_size=batch_size)
 #model = Model()
 #model.load_state_dict(torch.load("best_model/model.pth",map_location=torch.device('cpu')))
 if device == 'cpu':
-    model = torch.load("Model/model5.pkl",map_location='cpu')
-else :
-    
-    model = torch.load("Model/model5.pkl")
+    model = torch.load("./Model/model8.pth",map_location='cpu')
+else : 
+    model = torch.load("./Model/model8.pth")
 model = model.to(device)
 model.eval()
 res = test(test_loader,model)
@@ -81,4 +80,4 @@ res = test(test_loader,model)
 filelist, target_list = getlist(test_dataset.samples)
 result = [list(i) for i in zip(filelist,target_list,res)]
 result = pd.DataFrame(result,columns=['filename','target','pred'])
-result.to_csv('Result.csv')
+result.to_csv('./Result.csv')

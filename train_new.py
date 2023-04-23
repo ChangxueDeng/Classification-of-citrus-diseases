@@ -3,7 +3,7 @@ import torch
 import torch.utils.data as D
 import torchvision
 from efficientnet_pytorch import EfficientNet
-from tensorboardX import SummaryWriter
+#from tensorboardX import SummaryWriter
 import ranger21
 import os
 from torchsampler import ImbalancedDatasetSampler
@@ -28,7 +28,7 @@ def eff_train(train_loader, model, criterion, optimizer, epoch,device):
     epoch_acc = running_corrects / len(train_loader.dataset)        #计算每轮的准确率
     print("Training Accuracy = ", epoch_acc)          # 输出每轮的准确率
     
-    writer.add_scalar('efficientnet-b4', epoch_acc, global_step=epoch)     # 将准确率写入到tensorboard中
+    #writer.add_scalar('efficientnet-b4', epoch_acc, global_step=epoch)     # 将准确率写入到tensorboard中
 #验证
 def valid(valid_loader, model,device):
     model.eval()
@@ -46,7 +46,9 @@ def valid(valid_loader, model,device):
 
 #加载预训练模型："efficientnet-b4"
 def Model():
-    model_ft = EfficientNet.from_pretrained("efficientnet-b4")
+    model_ft = torchvision.models.mobilenet_v3_large(pretrained = True)
+    print(model_ft)
+    #model_ft = EfficientNet.from_pretrained("efficientnet-b4")
     num_ftrs = model_ft._fc.in_features
     model_ft.fc = torch.nn.Linear(num_ftrs,4)
     return model_ft
@@ -76,10 +78,10 @@ if __name__ == "__main__":
         ])
     #--------------------------------------加载数据集---------------------------------------
     #训练集
-    train_dataset = torchvision.datasets.ImageFolder(os.path.join("../dataset/train"), transforms_train)
+    train_dataset = torchvision.datasets.ImageFolder(os.path.join("./dataset/train"), transforms_train)
     print(train_dataset.class_to_idx)
     #验证集
-    valid_dataset = torchvision.datasets.ImageFolder(os.path.join("../dataset/valid"),transforms_valid)
+    valid_dataset = torchvision.datasets.ImageFolder(os.path.join("./dataset/valid"),transforms_valid)
 
     #-------------------------------------生成dataloader-----------------------------------------
     train_loader = D.DataLoader(train_dataset,sampler=ImbalancedDatasetSampler(train_dataset) ,batch_size=batch_size)
@@ -95,7 +97,7 @@ if __name__ == "__main__":
     criterion = torch.nn.CrossEntropyLoss()
 
     # 将tensorboard文件写入runs文件夹中
-    writer = SummaryWriter('../runs')
+    #writer = SummaryWriter('../runs')
 
     # 定义一个开始时间，用于查看整个模型训练耗时
     start_time = time.time()
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         eff_train(train_loader, model, criterion, optimizer, epoch,device)  # 调用前面定义的训练方法
         validing_acc = valid(valid_loader,model,device)
         if valid_acc <= validing_acc :
-            torch.save(model,"../best_model/model.pth")
+            torch.save(model,"/best_model/model.pth")
             valid_acc = validing_acc #更新
             print("Save PyTorch Model to best_model/model.pth")
         epoch = epoch + 1
@@ -117,6 +119,6 @@ if __name__ == "__main__":
     time = end_time - start_time
     print(time)
     # 关闭tensorboard写入
-    writer.close()
+    #writer.close()
 
     #classes = { 0 : "Citrus Black spot 0", 1: "Citrus canker 1", 2 : "Citrus greening 2",3:"Citrus Healthy 3"}

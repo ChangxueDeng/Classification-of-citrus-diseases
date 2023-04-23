@@ -14,6 +14,7 @@ def test(img, model):
         Input = Input.to(device)
         Output = model(Input)
         _,pred = torch.max(Output,1)
+        print(pred)
         pred = pred.cpu().numpy().tolist()
     return pred
 
@@ -27,14 +28,15 @@ img_transforms= torchvision.transforms.Compose([
 
 device = "cuda" if torch.cuda.is_available() else 'cpu'
 #单张照片路径
-img_path = "img\\1598254790395031.jpg"
+img_path = "dataset\\test\\Citrus Greening\\CitrusGreening(96).png"
 if device == 'cpu':
-    model = torch.load("Model/model4.pkl",map_location='cpu')
+    model = torch.load("Model/model8.pth",map_location='cpu')
 else :
-    model = torch.load("Model/model5.pkl")
+    model = torch.load("Model/model1.pth")
 model = model.to(device)
 img = get_img(img_path, img_transforms)
 pred = test(img,model)
+print(pred)
 if pred[0] == 0:
     print('Citrus Black spot')
 elif pred[0] == 1:
