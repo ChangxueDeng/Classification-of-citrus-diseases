@@ -28,11 +28,11 @@ img_transforms= torchvision.transforms.Compose([
 
 device = "cuda" if torch.cuda.is_available() else 'cpu'
 #单张照片路径
-img_path = "dataset\\test\\Citrus Greening\\CitrusGreening(96).png"
+img_path = "dataset\\test\\Citrus Greening\\CitrusGreening(7).png"
 if device == 'cpu':
-    model = torch.load("Model/model8.pth",map_location='cpu')
+    model = torch.load("./mobileNetModel/model17.pth",map_location='cpu')
 else :
-    model = torch.load("Model/model1.pth")
+    model = torch.load("./mobileNetModel/model17.pth")
 model = model.to(device)
 img = get_img(img_path, img_transforms)
 pred = test(img,model)

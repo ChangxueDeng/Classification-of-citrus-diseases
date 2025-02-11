@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 import torch.utils.data as D
 import torchvision
-from efficientnet_pytorch import EfficientNet
+
 import os
 from pycm import*
 import matplotlib.pyplot as plt
@@ -42,11 +42,11 @@ def getlist(dataset_samples):
         tager.append(dataset_samples[i][1])
     return [filelist,tager]
 
-def Model():
-    model_ft = EfficientNet.from_pretrained("efficientnet-b4")
-    num_ftrs = model_ft._fc.in_features
-    model_ft.fc = torch.nn.Linear(num_ftrs,4)
-    return model_ft
+# def Model():
+#     model_ft = EfficientNet.from_pretrained("efficientnet-b4")
+#     num_ftrs = model_ft._fc.in_features
+#     model_ft.fc = torch.nn.Linear(num_ftrs,4)
+#     return model_ft
 
 transforms_valid = torchvision.transforms.Compose([
         torchvision.transforms.Resize([224,224]),
@@ -69,9 +69,9 @@ test_loader = D.DataLoader(test_dataset, batch_size=batch_size)
 #model = Model()
 #model.load_state_dict(torch.load("best_model/model.pth",map_location=torch.device('cpu')))
 if device == 'cpu':
-    model = torch.load("./Model/model8.pth",map_location='cpu')
+    model = torch.load("./mobileNetModel/model17.pth",map_location='cpu')
 else : 
-    model = torch.load("./Model/model8.pth")
+    model = torch.load("./mobileNetModel/model17.pth")
 model = model.to(device)
 model.eval()
 res = test(test_loader,model)

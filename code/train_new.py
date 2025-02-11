@@ -2,9 +2,9 @@ import time
 import torch
 import torch.utils.data as D
 import torchvision
-from efficientnet_pytorch import EfficientNet
+# from efficientnet_pytorch import EfficientNet
 #from tensorboardX import SummaryWriter
-import ranger21
+# import ranger21
 import os
 from torchsampler import ImbalancedDatasetSampler
 
@@ -49,7 +49,8 @@ def Model():
     model_ft = torchvision.models.mobilenet_v3_large(pretrained = True)
     print(model_ft)
     #model_ft = EfficientNet.from_pretrained("efficientnet-b4")
-    num_ftrs = model_ft._fc.in_features
+    num_ftrs = model_ft.classifier[-1].in_features
+    #num_ftrs = model_ft._fc.in_features
     model_ft.fc = torch.nn.Linear(num_ftrs,4)
     return model_ft
 
@@ -92,8 +93,8 @@ if __name__ == "__main__":
     model = model.to(device)
     #print(model)
     # 采用ranger21优化器，交叉熵损失函数
-    optimizer = ranger21.Ranger21(model.parameters(),lr=lr,num_epochs=epochs,num_batches_per_epoch=len(train_loader))
-    #optimizer = torch.optim.SGD()
+    #optimizer = ranger21.Ranger21(model.parameters(),lr=lr,num_epochs=epochs,num_batches_per_epoch=len(train_loader))
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
     criterion = torch.nn.CrossEntropyLoss()
 
     # 将tensorboard文件写入runs文件夹中
