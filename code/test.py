@@ -1,83 +1,51 @@
-import time
-import pandas as pd
 import torch
-import torch.utils.data as D
-import torchvision
+import json
+import numpy as np
+from sklearn.metrics import classification_report, confusion_matrix
+from config import Config
 
-import os
-from pycm import*
-import matplotlib.pyplot as plt
-
-#测试
-def test(test_loader, model):
-    correct = 0
-    res = []
-    y_true = []
-    with torch.no_grad():
-        for i ,(Input, target) in enumerate(test_loader):
-            Input = Input.to(device)
-            target = target.to(device)
-            Output = model(Input)
-            _,preds = torch.max(Output,1)
-            print("target: ",target,"   preds: ", preds)
-            res += preds.cpu().numpy().tolist()
-            y_true += target.cpu().numpy().tolist()
-            correct += torch.sum(preds == target).item()
-    test_correct = correct / len(test_loader.dataset)
-    cm = ConfusionMatrix(y_true,res)
-    print(cm)
-    cm.print_matrix()
-    cm.print_normalized_matrix()
-    cm.plot(normalized=True,one_vs_all=True,cmap='Blues')
-    plt.show()
+def test_model(model_name):
+    # 加载模型
+    model = get_model()  # 需要实现模型加载逻辑
+    model_path = os.path.join(Config.model_save_dir, f"{model_name}.pth")
+    model.load_state_dict(torch.load(model_path))
+    model.eval()
     
-    print("test Accuracy = ", test_correct)
-    return res
+    # 加载测试数据
+    test_dataset = torchvision.datasets.ImageFolder(
+        os.path.join(Config.data_root, "test"),
+        transform=Config.val_transform
+    )
+    
+    test_loader = DataLoader(test_dataset, batch_size=Config.batch_size)
+    
+    # 执行测试
+    all_preds = []
+    all_labels = []
+    with torch.no_grad():
+        for inputs, labels in test_loader:
+            outputs = model(inputs.to(Config.device))
+            _, preds = torch.max(outputs, 1)
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.numpy())
+    
+    # 生成报告
+    report = classification_report(all_labels, all_preds, output_dict=True)
+    cm = confusion_matrix(all_labels, all_preds)
+    
+    # 保存结果
+    result = {
+        "model": model_name,
+        "test_accuracy": report["accuracy"],
+        "classification_report": report,
+        "confusion_matrix": cm.tolist()
+    }
+    
+    with open(f"test_results/{model_name}_test.json", "w") as f:
+        json.dump(result, f)
+    
+    return result
 
-def getlist(dataset_samples):
-    filelist = []
-    tager = []
-    for i in range(len(dataset_samples)):
-        filelist.append(dataset_samples[i][0])
-        tager.append(dataset_samples[i][1])
-    return [filelist,tager]
-
-# def Model():
-#     model_ft = EfficientNet.from_pretrained("efficientnet-b4")
-#     num_ftrs = model_ft._fc.in_features
-#     model_ft.fc = torch.nn.Linear(num_ftrs,4)
-#     return model_ft
-
-transforms_valid = torchvision.transforms.Compose([
-        torchvision.transforms.Resize([224,224]),
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                        std=[0.229, 0.224, 0.225])
-    ])
-
-device = "cuda" if torch.cuda.is_available() else 'cpu'
-print(device)
-
-batch_size = 1
-
-#测试集
-test_dataset = torchvision.datasets.ImageFolder(os.path.join("./dataset/test"),transforms_valid)
-print(test_dataset.class_to_idx)
-test_loader = D.DataLoader(test_dataset, batch_size=batch_size)
-
-# 进行预测
-#model = Model()
-#model.load_state_dict(torch.load("best_model/model.pth",map_location=torch.device('cpu')))
-if device == 'cpu':
-    model = torch.load("./mobileNetModel/model17.pth",map_location='cpu')
-else : 
-    model = torch.load("./mobileNetModel/model17.pth")
-model = model.to(device)
-model.eval()
-res = test(test_loader,model)
-
-#写入csv
-filelist, target_list = getlist(test_dataset.samples)
-result = [list(i) for i in zip(filelist,target_list,res)]
-result = pd.DataFrame(result,columns=['filename','target','pred'])
-result.to_csv('./Result.csv')
+if __name__ == "__main__":
+    model_name = "mobilenetv3_large"  # 修改为需要测试的模型
+    test_model(model_name)

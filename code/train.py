@@ -1,122 +1,178 @@
-# import time
-# import torch
-# import torch.utils.data as D
-# import torchvision
-# from efficientnet_pytorch import EfficientNet
-# from tensorboardX import SummaryWriter
-# import ranger21
-# import os
-# from torchsampler import ImbalancedDatasetSampler
+import torch
+import torch.nn as nn
+import json
+import os
+import copy
+from pathlib import Path
+from sklearn.metrics import f1_score
+from torch.utils.data import DataLoader
+from torchsampler import ImbalancedDatasetSampler
+from config import Config
+import torchvision
 
-# # 模型训练函数
-# def eff_train(train_loader, model, criterion, optimizer, epoch,device):
-#     model.train()
-#     #运行时的准确率
-#     running_corrects = 0.0
-#     for i, (Input, target) in enumerate(train_loader):
-#         Input = Input.to(device)
-#         target = target.to(device)
-#         Output = model(Input)
-#         loss = criterion(Output, target)
-#         _, preds = torch.max(Output.data,1)
-#         running_corrects += torch.sum(preds == target).item()
-#         optimizer.zero_grad()
-#         loss.backward()
-#         optimizer.step()
-#         if i % 100 == 0:
-#             print("Training loss = ", loss.item())    # 每轮中的100次输出一次loss
-#     epoch_acc = running_corrects / len(train_loader.dataset)        #计算每轮的准确率
-#     print("Training Accuracy = ", epoch_acc)          # 输出每轮的准确率
+def get_model():
+    model = None
+    if Config.model_name == "mobilenetv3_large":
+        model = torchvision.models.mobilenet_v3_large(pretrained=True)
+        # 冻结所有参数
+        for param in model.parameters():
+            param.requires_grad = False
+        #修改分类器最后一层
+        num_ftrs = model.classifier[-1].in_features
+        model.classifier[-1] = nn.Linear(num_ftrs, 4)
+        # 解冻分类器参数（可选，若需训练整个分类器）
+        for param in model.classifier.parameters():
+            param.requires_grad = True
+    elif Config.model_name == "mobilenetv2":
+        model = torchvision.models.mobilenet_v2(pretrained=True)
+        # 冻结所有参数
+        for param in model.parameters():
+            param.requires_grad = False
+        # 修改分类器最后一层
+        num_ftrs = model.classifier[-1].in_features
+        model.classifier[-1] = nn.Linear(num_ftrs, 4)
+        # 解冻分类器参数（可选，若需训练整个分类器）
+        for param in model.classifier.parameters():
+            param.requires_grad = True
+    elif Config.model_name == "mobilenetv3_small":
+        model = torchvision.models.mobilenet_v3_small(pretrained=True)
+        # 冻结所有参数
+        for param in model.parameters():
+            param.requires_grad = False
+        # 修改分类器最后一层
+        num_ftrs = model.classifier[-1].in_features
+        model.classifier[-1] = nn.Linear(num_ftrs, 4)
+        # 解冻分类器参数（可选，若需训练整个分类器）
+        for param in model.classifier.parameters():
+            param.requires_grad = True
+    elif Config.model_name == "resnet18":
+        model = torchvision.models.resnet18(pretrained=True)
+        # 冻结所有参数
+        for param in model.parameters():
+            param.requires_grad = False
+        # 修改分类器最后一层
+        num_ftrs = model.fc.in_features
+        model.fc = nn.Linear(num_ftrs, 4)
+        # 解冻全连接层参数
+        for param in model.fc.parameters():
+            param.requires_grad = True
+
+    return model.to(Config.device)
+
+def save_training_log(log_data):
+    Path(Config.result_dir).mkdir(exist_ok=True)
+    log_path = os.path.join(Config.result_dir, f"{Config.model_name}_log.json")
+    with open(log_path, "w") as f:
+        json.dump(log_data, f)
+
+def train():
+    # 初始化
+    train_dataset = torchvision.datasets.ImageFolder(
+        os.path.join(Config.data_root, "train"),
+        transform=Config.train_transform
+    )
     
-#     writer.add_scalar('efficientnet-b4', epoch_acc, global_step=epoch)     # 将准确率写入到tensorboard中
-# #验证
-# def valid(valid_loader, model,device):
-#     model.eval()
-#     correct = 0.0
-#     with torch.no_grad():
-#         for i ,(Input, target) in enumerate(valid_loader):
-#             Input = Input.to(device)
-#             target = target.to(device)
-#             Output = model(Input)
-#             _,preds = torch.max(Output.data,1)
-#             correct += torch.sum(preds == target).item()
-#     valid_correct = correct / len(valid_loader.dataset)
-#     print("valid Accuracy = ", valid_correct)
-#     return valid_correct
+    train_loader = DataLoader(
+        train_dataset,
+        sampler=ImbalancedDatasetSampler(train_dataset),
+        batch_size=Config.batch_size
+    )
 
-# #加载预训练模型："efficientnet-b4"
-# def Model():
-#     model_ft = EfficientNet.from_pretrained("efficientnet-b4")
-#     num_ftrs = model_ft._fc.in_features
-#     model_ft.fc = torch.nn.Linear(num_ftrs,4)
-#     return model_ft
+    val_dataset = torchvision.datasets.ImageFolder(
+        os.path.join(Config.data_root, "val"),
+        transform=Config.val_transform
+    )
+    
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=Config.batch_size,
+        shuffle=False
+    )
+    
+    model = get_model()
+    optimizer = torch.optim.Adam(model.parameters(), lr=Config.lr)
+    criterion = nn.CrossEntropyLoss()
+    
+    # 训练记录
+    history = {
+        "train_loss": [],
+        "train_acc": [],
+        "val_acc": [],
+        "val_macro_f1" : []
+    }
 
+    # 训练循环
+    for epoch in range(Config.epochs):
+        # 训练步骤...
+        model.train()
+        train_acc = 0.0
+        train_loss = 0.0
+        for i, (Input, target) in enumerate(train_loader):
+            Input = Input.to(Config.device)
+            target = target.to(Config.device)
+            Output = model(Input) # 前向预测，获得当前 batch 的预测结果
+            loss = criterion(Output, target) # 比较预测结果和标注，计算当前 batch 的交叉熵损失函数
+            train_loss += loss.item() * Input.size(0)
 
+            _, preds = torch.max(Output.data,1) # 获得当前 batch 的预测结果
+            train_acc += torch.sum(preds == target).item() # 计算当前 batch 的准确率
 
-# if __name__ == "__main__":
-#     device = "cuda" if torch.cuda.is_available() else 'cpu'
-#     epochs = 20
-#     batch_size = 64
-#     lr = 0.001
-#     print(device)
-#     #--------------------------transforms数据增强----------------------------
-#     transforms_train = torchvision.transforms.Compose([
-#             torchvision.transforms.Resize([224,224]),
-#             torchvision.transforms.RandomHorizontalFlip(), #随机水平翻转
-#             torchvision.transforms.RandomVerticalFlip(), #随机垂直翻
-#             torchvision.transforms.ToTensor(),
-#             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-#                                              std=[0.229, 0.224, 0.225])
-#         ])
-#     transforms_valid = torchvision.transforms.Compose([
-#             torchvision.transforms.Resize([224,224]),
-#             torchvision.transforms.ToTensor(),
-#             torchvision.transforms.Normalize(mean=[0.485, 0.456, 0.406],
-#                                              std=[0.229, 0.224, 0.225])
-#         ])
-#     #--------------------------------------加载数据集---------------------------------------
-#     #训练集
-#     train_dataset = torchvision.datasets.ImageFolder(os.path.join("../dataset/train"), transforms_train)
-#     print(train_dataset.class_to_idx)
-#     #验证集
-#     valid_dataset = torchvision.datasets.ImageFolder(os.path.join("../dataset/valid"),transforms_valid)
+            optimizer.zero_grad()
+            loss.backward()     # 损失函数对神经网络权重反向传播求梯度
+            optimizer.step()
+        train_loss = train_loss / len(train_loader.dataset)
+        train_acc = train_acc / len(train_loader.dataset)
 
-#     #-------------------------------------生成dataloader-----------------------------------------
-#     train_loader = D.DataLoader(train_dataset,sampler=ImbalancedDatasetSampler(train_dataset) ,batch_size=batch_size)
-#     valid_loader = D.DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
+        # 验证步骤
+        model.eval()
+        val_preds = []    # 新增：存储所有预测结果
+        val_labels = []   # 新增：存储所有真实标签
+        val_acc = 0.0
+        with torch.no_grad():
+            for Input, target in val_loader:
+                Input = Input.to(Config.device)
+                target = target.to(Config.device)
+                Output = model(Input)
+                _, preds = torch.max(Output.data, 1)
+                val_acc += torch.sum(preds == target).item()
+                
+                # 新增：收集全部预测结果和标签
+                val_preds.extend(preds.cpu().numpy())
+                val_labels.extend(target.cpu().numpy())
 
-#     #---------------------------- 加载模型------------------------------------
-#     model = Model()
-#     model = model.to(device)
-#     #print(model)
-#     # 采用ranger21优化器，交叉熵损失函数
-#     optimizer = ranger21.Ranger21(model.parameters(),lr=lr,num_epochs=epochs,num_batches_per_epoch=len(train_loader))
-#     #optimizer = torch.optim.SGD()
-#     criterion = torch.nn.CrossEntropyLoss()
+        val_acc = val_acc / len(val_loader.dataset)
+        val_f1 = f1_score(val_labels, val_preds, average='macro')  # 关键指标
+        # # 早停判断与模型保存
+        # if val_f1 > best_f1:
+        #     best_f1 = val_f1
+        #     no_improve = 0
+        #     best_model_wts = copy.deepcopy(model.state_dict())  # 深拷贝最佳参数
+        #     torch.save(best_model_wts,  # 立即保存最佳模型
+        #             os.path.join(Config.model_save_dir, f"{Config.model_name}_best.pth"))
+        # else:
+        #     no_improve += 1
+        #     if no_improve >= patience:
+        #         print(f'Early stopping at epoch {epoch+1}, best f1: {best_f1:.4f}')
+        #         model.load_state_dict(best_model_wts)  # 恢复最佳模型参数
+        #         break
 
-#     # 将tensorboard文件写入runs文件夹中
-#     writer = SummaryWriter('../runs')
+        # 保存记录
+        history["train_loss"].append(train_loss)
+        history["train_acc"].append(train_acc)
+        history["val_acc"].append(val_acc)
+        history["val_macro_f1"].append(val_f1)
 
-#     # 定义一个开始时间，用于查看整个模型训练耗时
-#     start_time = time.time()
+        print(f'Epoch {epoch+1}/{Config.epochs}, Train Loss: {train_loss:.4f},Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}, Val Macro F1: {val_f1:.4f}')
+    
+    # 保存最终模型和记录
+    torch.save(model.state_dict(), 
+              os.path.join(Config.model_save_dir, f"{Config.model_name}.pth"))
+    save_training_log(history)
 
-#     #------------------------------ 开始训练-------------------------------------
-#     valid_acc = 0   #验证集准确率，用于判断是否保存模型
-#     for epoch in range(epochs):
-#         print("*********************   Epoch ", epoch, " ************************")
-#         eff_train(train_loader, model, criterion, optimizer, epoch,device)  # 调用前面定义的训练方法
-#         validing_acc = valid(valid_loader,model,device)
-#         if valid_acc <= validing_acc :
-#             torch.save(model,"../best_model/model.pth")
-#             valid_acc = validing_acc #更新
-#             print("Save PyTorch Model to best_model/model.pth")
-#         epoch = epoch + 1
-#     # 定义一个结束时间
-#     end_time = time.time()
-#     # 用开始时间-结束时间=总耗时
-#     time = end_time - start_time
-#     print(time)
-#     # 关闭tensorboard写入
-#     writer.close()
-
-#     #classes = { 0 : "Citrus Black spot 0", 1: "Citrus canker 1", 2 : "Citrus greening 2",3:"Citrus Healthy 3"}
+if __name__ == "__main__":
+    # 创建保存目录
+    os.makedirs(Config.model_save_dir, exist_ok=True)
+    os.makedirs(Config.result_dir, exist_ok=True)
+    
+    # 开始训练
+    train()
