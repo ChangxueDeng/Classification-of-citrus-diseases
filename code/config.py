@@ -17,6 +17,7 @@ class Config:
     data_root = "./dataset/temp"
     model_save_dir = "./saved_models"
     result_dir = "./training_results"
+    test_result_dir = "./test_results"
     
     # 设备配置
     device = "cuda" if torch.cuda.is_available() else "cpu"

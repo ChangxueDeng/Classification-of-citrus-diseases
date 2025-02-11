@@ -165,8 +165,7 @@ def train():
         print(f'Epoch {epoch+1}/{Config.epochs}, Train Loss: {train_loss:.4f},Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}, Val Macro F1: {val_f1:.4f}')
     
     # 保存最终模型和记录
-    torch.save(model.state_dict(), 
-              os.path.join(Config.model_save_dir, f"{Config.model_name}.pth"))
+    torch.save(model, os.path.join(Config.model_save_dir, f"{Config.model_name}.pt"))
     save_training_log(history)
 
 if __name__ == "__main__":

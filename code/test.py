@@ -1,14 +1,22 @@
 import torch
 import json
 import numpy as np
+from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report, confusion_matrix
+import torchvision
+import os
 from config import Config
+from tqdm import tqdm
+
+
 
 def test_model(model_name):
     # 加载模型
-    model = get_model()  # 需要实现模型加载逻辑
-    model_path = os.path.join(Config.model_save_dir, f"{model_name}.pth")
-    model.load_state_dict(torch.load(model_path))
+    if Config.device == "cpu":
+        model = torch.load(os.path.join(Config.model_save_dir, f"{model_name}.pt"), map_location="cpu",weights_only=False)
+    else:
+        model = torch.load(os.path.join(Config.model_save_dir, f"{model_name}.pt"), weights_only=False)
+    model = model.to(Config.device)
     model.eval()
     
     # 加载测试数据
@@ -23,7 +31,7 @@ def test_model(model_name):
     all_preds = []
     all_labels = []
     with torch.no_grad():
-        for inputs, labels in test_loader:
+        for inputs, labels in tqdm(test_loader, desc=f"Testing {model_name}"):
             outputs = model(inputs.to(Config.device))
             _, preds = torch.max(outputs, 1)
             all_preds.extend(preds.cpu().numpy())
@@ -41,9 +49,11 @@ def test_model(model_name):
         "confusion_matrix": cm.tolist()
     }
     
-    with open(f"test_results/{model_name}_test.json", "w") as f:
+    if not os.path.exists(Config.test_result_dir):
+        os.makedirs(Config.test_result_dir)
+    with open(f"{Config.test_result_dir}/{model_name}_test.json", "w") as f:
         json.dump(result, f)
-    
+    print(f"Test results saved to {Config.test_result_dir}/{model_name}_test.json")
     return result
 
 if __name__ == "__main__":
