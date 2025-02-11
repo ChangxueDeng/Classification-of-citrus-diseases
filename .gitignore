@@ -6,3 +6,5 @@ dataset-1/
 Model/
 mobileNetModel/
 Result.csv
+saved_model/
+training_log/
