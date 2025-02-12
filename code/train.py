@@ -7,13 +7,18 @@ from pathlib import Path
 from sklearn.metrics import f1_score
 from torch.utils.data import DataLoader
 from torchsampler import ImbalancedDatasetSampler
+from torchvision.models.mobilenetv3 import MobileNet_V3_Large_Weights
 from config import Config
 import torchvision
+from tqdm import tqdm
+import time
+
+a = True
 
 def get_model():
     model = None
     if Config.model_name == "mobilenetv3_large":
-        model = torchvision.models.mobilenet_v3_large(pretrained=True)
+        model = torchvision.models.mobilenet_v3_large(weigth=torchvision.models.MobileNet_V3_Large_Weights)
         # 冻结所有参数
         for param in model.parameters():
             param.requires_grad = False
@@ -24,7 +29,7 @@ def get_model():
         for param in model.classifier.parameters():
             param.requires_grad = True
     elif Config.model_name == "mobilenetv2":
-        model = torchvision.models.mobilenet_v2(pretrained=True)
+        model = torchvision.models.mobilenet_v2(weigth=torchvision.models.MobileNet_V2_Weights)
         # 冻结所有参数
         for param in model.parameters():
             param.requires_grad = False
@@ -35,7 +40,7 @@ def get_model():
         for param in model.classifier.parameters():
             param.requires_grad = True
     elif Config.model_name == "mobilenetv3_small":
-        model = torchvision.models.mobilenet_v3_small(pretrained=True)
+        model = torchvision.models.mobilenet_v3_small(weigth=torchvision.models.MobileNet_V3_Small_Weights)
         # 冻结所有参数
         for param in model.parameters():
             param.requires_grad = False
@@ -46,7 +51,7 @@ def get_model():
         for param in model.classifier.parameters():
             param.requires_grad = True
     elif Config.model_name == "resnet18":
-        model = torchvision.models.resnet18(pretrained=True)
+        model = torchvision.models.resnet18(weigth=torchvision.models.ResNet18_Weights)
         # 冻结所有参数
         for param in model.parameters():
             param.requires_grad = False
@@ -66,6 +71,7 @@ def save_training_log(log_data):
         json.dump(log_data, f)
 
 def train():
+    start_time = time.time()
     # 初始化
     train_dataset = torchvision.datasets.ImageFolder(
         os.path.join(Config.data_root, "train"),
@@ -107,7 +113,7 @@ def train():
         model.train()
         train_acc = 0.0
         train_loss = 0.0
-        for i, (Input, target) in enumerate(train_loader):
+        for Input, target in tqdm(train_loader, desc=f"Training {Config.model_name}"):
             Input = Input.to(Config.device)
             target = target.to(Config.device)
             Output = model(Input) # 前向预测，获得当前 batch 的预测结果
@@ -167,6 +173,15 @@ def train():
     # 保存最终模型和记录
     torch.save(model, os.path.join(Config.model_save_dir, f"{Config.model_name}.pt"))
     save_training_log(history)
+
+    # 记录结束时间
+    end_time = time.time()
+    total_time = end_time - start_time
+    # 将总训练时间转换为小时和分钟
+    hours, remainder = divmod(total_time, 3600)
+    minutes, seconds = divmod(remainder, 60)
+     # 打印总训练时间
+    print(f'Total training time: {int(hours)} hours {int(minutes)} minutes {int(seconds)} seconds')
 
 if __name__ == "__main__":
     # 创建保存目录
