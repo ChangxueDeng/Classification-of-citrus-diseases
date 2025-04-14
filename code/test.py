@@ -13,9 +13,9 @@ from tqdm import tqdm
 def test_model(model_name):
     # 加载模型
     if Config.device == "cpu":
-        model = torch.load(os.path.join(Config.model_save_dir, f"{model_name}.pt"), map_location="cpu",weights_only=False)
+        model = torch.load(os.path.join(Config.model_save_dir, f"{model_name}_best.pt"), map_location="cpu",weights_only=False)
     else:
-        model = torch.load(os.path.join(Config.model_save_dir, f"{model_name}.pt"), weights_only=False)
+        model = torch.load(os.path.join(Config.model_save_dir, f"{model_name}_best.pt"), weights_only=False, map_location='cuda:0')
     model = model.to(Config.device)
     model.eval()
     
@@ -25,7 +25,7 @@ def test_model(model_name):
         transform=Config.val_transform
     )
     
-    test_loader = DataLoader(test_dataset, batch_size=Config.batch_size)
+    test_loader = DataLoader(test_dataset, batch_size=Config.batch_size,num_workers=8)
     
     # 执行测试
     all_preds = []
@@ -46,7 +46,9 @@ def test_model(model_name):
         "model": model_name,
         "test_accuracy": report["accuracy"],
         "classification_report": report,
-        "confusion_matrix": cm.tolist()
+        
+        # "confusion_matrix": cm.tolist(),
+        "confusion_matrix_percent": (cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]).tolist()
     }
     
     if not os.path.exists(Config.test_result_dir):
@@ -57,5 +59,5 @@ def test_model(model_name):
     return result
 
 if __name__ == "__main__":
-    model_name = "mobilenetv3_large"  # 修改为需要测试的模型
+    model_name = "efficientnet_b3"  # 修改为需要测试的模型
     test_model(model_name)

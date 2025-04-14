@@ -3,8 +3,8 @@ import shutil
 from sklearn.model_selection import train_test_split
 
 # 配置参数
-dataset_path = "./dataset/all"  # 数据集根目录
-output_path = "./dataset"  # 输出目录
+dataset_path = "./dataset/all_new"  # 数据集根目录
+output_path = "./dataset/all_new_1"  # 输出目录
 test_ratio = 0.15    # 测试集比例
 val_ratio = 0.15     # 验证集比例（从训练集剩余部分划分）
 seed = 42            # 随机种子

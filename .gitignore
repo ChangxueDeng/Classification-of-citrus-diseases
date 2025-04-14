@@ -8,3 +8,5 @@ mobileNetModel/
 Result.csv
 saved_models/
 training_results/
+cache/
+cache.zip
