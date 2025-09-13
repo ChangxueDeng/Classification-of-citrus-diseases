@@ -10,3 +10,10 @@ saved_models/
 training_results/
 cache/
 cache.zip
+./vscode/
+out/
+plant/
+test_results/
+test_time_results/
+*.png
+*.7z
